@@ -30,12 +30,6 @@ require.config({
     'shared/screen_layout': {
       exports: 'ScreenLayout'
     },
-    'shared/settings_url': {
-      exports: 'SettingsURL'
-    },
-    'shared/omadrm/fl': {
-      exports: 'ForwardLock'
-    },
     'shared/settings_listener': {
       exports: 'SettingsListener'
     },
@@ -52,7 +46,10 @@ require.config({
     },
     {
       name: 'panels/root/panel',
-      exclude: ['main']
+      exclude: [
+        'main',
+        'modules/battery'
+      ]
     },
     {
       name: 'panels/languages/panel',
@@ -88,13 +85,6 @@ require.config({
     {
       name: 'panels/screen_lock_passcode/panel',
       exclude: ['main']
-    },
-    {
-      name: 'panels/display/panel',
-      exclude: [
-        'main',
-        'modules/mvvm/observable'
-      ]
     },
     {
       name: 'panels/keyboard/panel',

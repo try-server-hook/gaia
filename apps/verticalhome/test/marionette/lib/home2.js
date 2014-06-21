@@ -37,7 +37,9 @@ Home2.Selectors = {
   editHeaderDone: '#edit-header menu a',
   search: '#search',
   firstIcon: '#icons div.icon:not(.placeholder)',
-  dividers: '#icons div.divider'
+  dividers: '#icons div.divider',
+  contextmenu: '#contextmenu-dialog',
+  confirmMessageOk: '#confirmation-message-ok'
 };
 
 /**
@@ -51,6 +53,19 @@ Home2.prototype = {
 
   get numDividers() {
     return this.client.findElements(Home2.Selectors.dividers).length;
+  },
+
+  /**
+   * Clicks the confirm dialog primary action until it goes away.
+   * The system app may be covering it up with some annoying dialog.
+   */
+  clickConfirm: function() {
+    this.client.waitFor(function() {
+      var confirm = this.client.helper.waitForElement(
+        Home2.Selectors.confirmMessageOk);
+      confirm.click();
+      return !confirm.displayed();
+    }.bind(this));
   },
 
   /**
@@ -148,6 +163,26 @@ Home2.prototype = {
 
     var locales = manifest.locales;
     return locales && locales[locale].name;
+  },
+
+  /**
+   * Returns a localized string from a properties file.
+   * @param {String} file to open.
+   * @param {String} key of the string to lookup.
+   */
+  l10n: function(file, key) {
+    var string = this.client.executeScript(function(file, key) {
+      var xhr = new XMLHttpRequest();
+      var data;
+      xhr.open('GET', file, false); // Intentional sync
+      xhr.onload = function(o) {
+        data = JSON.parse(xhr.response);
+      };
+      xhr.send(null);
+      return data;
+    }, [file, key]);
+
+    return string[key];
   },
 
   containsClass: function(selector, clazz) {
