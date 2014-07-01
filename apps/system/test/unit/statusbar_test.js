@@ -208,13 +208,13 @@ suite('system/Statusbar', function() {
     });
     test('lock', function() {
       MockLockScreen.locked = true;
-      var evt = new CustomEvent('lock');
+      var evt = new CustomEvent('lockscreen-appopened');
       StatusBar.handleEvent(evt);
       assert.equal(StatusBar.clock.timeoutID, null);
       assert.equal(StatusBar.icons.time.hidden, true);
     });
     test('unlock', function() {
-      var evt = new CustomEvent('unlock');
+      var evt = new CustomEvent('lockscreen-appclosed');
       StatusBar.handleEvent(evt);
       assert.notEqual(StatusBar.clock.timeoutID, null);
       assert.equal(StatusBar.icons.time.hidden, false);
@@ -453,7 +453,8 @@ suite('system/Statusbar', function() {
             sinon.stub(mockSimSlots[slotIndex], 'isLocked').returns(true);
 
             MockNavigatorMozTelephony.active = {
-              state: 'connected'
+              state: 'connected',
+              serviceId: slotIndex
             };
 
             StatusBar.update.signal.call(StatusBar);
@@ -479,7 +480,8 @@ suite('system/Statusbar', function() {
             sinon.stub(mockSimSlots[slotIndex], 'isLocked').returns(true);
 
             MockNavigatorMozTelephony.active = {
-              state: 'dialing'
+              state: 'dialing',
+              serviceId: slotIndex
             };
 
             StatusBar.update.signal.call(StatusBar);
@@ -507,7 +509,8 @@ suite('system/Statusbar', function() {
             StatusBar.update.signal.call(StatusBar);
 
             var activeCall = {
-              state: 'dialing'
+              state: 'dialing',
+              serviceId: slotIndex
             };
 
             MockNavigatorMozTelephony.active = activeCall;
@@ -1341,6 +1344,28 @@ suite('system/Statusbar', function() {
       StatusBar.handleEvent(evt);
 
       assert.isTrue(StatusBar.element.classList.contains('invisible'));
+    });
+
+    test('the status bar should be hidden when app is opening in fullscreen',
+    function() {
+      this.sinon.stub(app, 'isFullScreen').returns(true);
+      StatusBar.show();
+
+      var evt = new CustomEvent('appopened', { detail: app });
+      StatusBar.handleEvent(evt);
+
+      assert.isTrue(StatusBar.element.classList.contains('invisible'));
+    });
+
+    test('the status bar should show when app is opening not in fullscreen',
+    function() {
+      this.sinon.stub(app, 'isFullScreen').returns(false);
+      StatusBar.show();
+
+      var evt = new CustomEvent('appopened', { detail: app });
+      StatusBar.handleEvent(evt);
+
+      assert.isFalse(StatusBar.element.classList.contains('invisible'));
     });
 
     suite('Revealing the StatusBar >', function() {

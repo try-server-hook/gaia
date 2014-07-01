@@ -1,5 +1,6 @@
 'use strict';
-/* global GridItem */
+/* global GaiaGrid */
+/* global GridIconRenderer */
 /* global MozActivity */
 /* jshint nonew: false */
 
@@ -18,7 +19,13 @@
 
   Bookmark.prototype = {
 
-    __proto__: GridItem.prototype,
+    __proto__: GaiaGrid.GridItem.prototype,
+
+    /**
+     * Bookmarks use a custom icon renderer because they are likely much
+     * smaller than a standard icon.
+     */
+    renderer: GridIconRenderer.TYPE.FAVICON,
 
     /**
      * Returns the height in pixels of each icon.
@@ -44,41 +51,38 @@
       return this.detail.id;
     },
 
-    update: function(record) {
-      this.detail = record;
-      this.detail.type = TYPE;
-      var nameEl = this.element.querySelector('.title');
-      if (nameEl) {
-        nameEl.textContent = this.name;
-
-        // Bug 1007743 - Workaround for projected content nodes disappearing
-        document.body.clientTop;
-        this.element.style.display = 'none';
-        document.body.clientTop;
-        this.element.style.display = '';
-      }
-    },
+    update: GaiaGrid.GridItem.prototype.updateFromDatastore,
 
     /**
-     * Bookmarks are always editable.
+     * Bookmarks are always editable unless noted otherwise in features.
      */
     isEditable: function() {
-      return true;
+      return this.features && this.features.isEditable !== false;
     },
 
     /**
-     * Bookmarks are always removable.
+     * Bookmarks are always removable unless noted otherwise in features.
      */
     isRemovable: function() {
-      return true;
+      return this.features && this.features.isRemovable !== false;
+    },
+
+    /**
+     * Bookmarks are always draggable unless noted otherwise in features.
+     */
+    isDraggable: function() {
+      return this.features && this.features.isDraggable !== false;
     },
 
     /**
      * This method overrides the GridItem.render function.
      */
     render: function(coordinates, index) {
-      GridItem.prototype.render.call(this, coordinates, index);
+      GaiaGrid.GridItem.prototype.render.call(this, coordinates, index);
       this.element.classList.add('bookmark');
+      if (this.isEditable()) {
+        this.element.classList.add('editable');
+      }
     },
 
     /**
@@ -106,19 +110,6 @@
     },
 
     /**
-     * Opens a web activity to remove the bookmark.
-     */
-    remove: function() {
-      new MozActivity({
-        name: 'remove-bookmark',
-        data: {
-          type: 'url',
-          url: this.detail.id
-        }
-      });
-    },
-
-    /**
      * Opens a web activity to edit the bookmark.
      */
     edit: function() {
@@ -132,6 +123,6 @@
     }
   };
 
-  exports.Bookmark = Bookmark;
+  exports.GaiaGrid.Bookmark = Bookmark;
 
 }(window));

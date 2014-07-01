@@ -1,3 +1,5 @@
+#screen.dialog #left-panel,
+#screen.dialog #right-panel,
 .gesture-panel.disabled {
   visibility: hidden;
 }

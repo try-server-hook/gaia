@@ -1,20 +1,13 @@
 'use strict';
-/* global devicePixelRatio */
+/* global GridIconRenderer */
 /* global Promise */
 
 (function(exports) {
 
-  const SHADOW_BLUR = 1;
-  const SHADOW_OFFSET_Y = 1;
-  const SHADOW_OFFSET_X = 1;
-  const SHADOW_COLOR = 'rgba(0, 0, 0, 0.2)';
-  const UNSCALED_CANVAS_PADDING = 2;
-  const CANVAS_PADDING = UNSCALED_CANVAS_PADDING * devicePixelRatio;
-  const FETCH_XHR_TIMEOUT = 10000;
-
   // event names
   const ICON_BLOB_LOAD_EVENT = 'gaiagrid-iconblobload';
   const ICON_BLOB_ERROR_EVENT = 'gaiagrid-iconbloberror';
+  const FETCH_XHR_TIMEOUT = 10000;
 
   /**
    * XHR wrapper for fetching blobs with timeout logic.
@@ -84,6 +77,14 @@
     persistToDB: true,
 
     /**
+     * The icon renderer to use. Sub-classes may override this, and individual
+     * objects may as well with a custom detail.renderer property.
+     * Bookmarks use this for example to render both web results from E.me,
+     * and favicons from the web with different styles.
+     */
+    renderer: GridIconRenderer.TYPE.STANDARD,
+
+    /**
      * Every grid item has a desired icon (over the network) if we fail to fetch
      * or render it for some reason we display another. This string keeps track
      * of the states:
@@ -125,6 +126,13 @@
      */
     isEditable: function() {
       return false;
+    },
+
+    /**
+     * Returns true if this item is draggable.
+     */
+    isDraggable: function() {
+      return true;
     },
 
     /**
@@ -173,45 +181,10 @@
      * @param {HTMLImageElement} img An image element to display from.
      */
     _decorateIcon: function(img) {
-      const MAX_ICON_SIZE = this.grid.layout.gridIconSize * devicePixelRatio;
-
-      var shadowCanvas = document.createElement('canvas');
-      shadowCanvas.width = MAX_ICON_SIZE + (CANVAS_PADDING * 2);
-      shadowCanvas.height = MAX_ICON_SIZE + (CANVAS_PADDING * 2);
-      var shadowCtx = shadowCanvas.getContext('2d');
-
-      shadowCtx.shadowColor = SHADOW_COLOR;
-      shadowCtx.shadowBlur = SHADOW_BLUR;
-      shadowCtx.shadowOffsetY = SHADOW_OFFSET_Y;
-      shadowCtx.shadowOffsetX = SHADOW_OFFSET_X;
-
-      if (this.detail.clipIcon) {
-        // clipping to round the icon
-        var clipCanvas = document.createElement('canvas');
-        clipCanvas.width = shadowCanvas.width;
-        clipCanvas.height = shadowCanvas.height;
-        var clipCtx = clipCanvas.getContext('2d');
-
-        clipCtx.beginPath();
-        clipCtx.arc(clipCanvas.width / 2, clipCanvas.height / 2,
-                    clipCanvas.height / 2 - CANVAS_PADDING, 0, 2 * Math.PI);
-        clipCtx.clip();
-
-        clipCtx.drawImage(img, CANVAS_PADDING, CANVAS_PADDING,
-                               MAX_ICON_SIZE, MAX_ICON_SIZE);
-
-        var clipImage = new Image();
-        clipImage.onload = function clip_onload() {
-          shadowCtx.drawImage(clipImage, CANVAS_PADDING, CANVAS_PADDING,
-                                MAX_ICON_SIZE, MAX_ICON_SIZE);
-          shadowCanvas.toBlob(this._displayDecoratedIcon.bind(this));
-        }.bind(this);
-        clipImage.src = clipCanvas.toDataURL();
-      } else {
-        shadowCtx.drawImage(img, CANVAS_PADDING, CANVAS_PADDING,
-                      MAX_ICON_SIZE, MAX_ICON_SIZE);
-        shadowCanvas.toBlob(this._displayDecoratedIcon.bind(this));
-      }
+      var strategy = this.detail.renderer || this.renderer;
+      this.rendererInstance = new GridIconRenderer(this);
+      this.rendererInstance[strategy](img).
+        then(this._displayDecoratedIcon.bind(this));
     },
 
     /**
@@ -221,9 +194,10 @@
      */
     _displayDecoratedIcon: function(blob) {
       this.element.style.height = this.grid.layout.gridItemHeight + 'px';
+      // icon size + padding for shadows implemented in the icon renderer
       this.element.style.backgroundSize =
         ((this.grid.layout.gridIconSize * (1 / this.scale)) +
-        UNSCALED_CANVAS_PADDING) +'px';
+        this.rendererInstance.unscaledCanvasPadding) + 'px';
       this.element.style.backgroundImage =
         'url(' + URL.createObjectURL(blob) + ')';
     },
@@ -330,6 +304,41 @@
     },
 
     /**
+    Safely remove this item from the grid and DOM.
+    */
+    removeFromGrid: function() {
+      var idx = this.grid.items.indexOf(this);
+
+      // This should never happen but is remotely possible item is not in the
+      // grid.
+      if (idx === -1) {
+        console.error('Attempting to remove self before item has been added!');
+        return;
+      }
+
+      // update the state of the grid and DOM so this item is no longer
+      // referenced.
+      this.grid.items.splice(idx, 1);
+      delete this.grid.icons[this.identifier];
+
+      if (this.element) {
+        this.element.parentNode.removeChild(this.element);
+      }
+
+      // ensure we don't end up with empty cruft..
+      this.grid.render({ from: idx - 1 });
+    },
+
+    /**
+    Removes item from the dom and dispatches a removeitem event.
+    */
+    remove: function() {
+      this.grid.element.dispatchEvent(new CustomEvent('removeitem', {
+        detail: this
+      }));
+    },
+
+    /**
      * Renders the icon to the container.
      * @param {Array} coordinates Grid coordinates to render to.
      * @param {Number} index The index of the items list of this item.
@@ -342,13 +351,15 @@
         var tile = document.createElement('div');
         tile.className = 'icon';
         tile.dataset.identifier = this.identifier;
+        tile.dataset.isDraggable = this.isDraggable();
         tile.setAttribute('role', 'link');
 
         // This <p> has been added in order to place the title with respect
         // to this container via CSS without touching JS.
         var nameContainerEl = document.createElement('p');
-        nameContainerEl.style.marginTop = (this.grid.layout.gridIconSize *
-                                          (1 / this.scale)) + 'px';
+        nameContainerEl.style.marginTop = ((this.grid.layout.gridIconSize *
+          (1 / this.scale)) +
+          GridIconRenderer.prototype.unscaledCanvasPadding) + 'px';
         tile.appendChild(nameContainerEl);
 
         var nameEl = document.createElement('span');
@@ -385,13 +396,56 @@
     /**
      * Positions and scales an icon.
      */
-    transform: function(x, y, scale) {
+    transform: function(x, y, scale, element) {
       scale = scale || 1;
-      this.element.style.transform =
+      element = element || this.element;
+      element.style.transform =
         'translate(' + x + 'px,' + y + 'px) scale(' + scale + ')';
+    },
+
+    /**
+    Updates the title of the icon on the grid.
+    */
+    updateTitle: function() {
+      // it is remotely possible that we have not .rendered yet
+      if (!this.element) {
+        return;
+      }
+      var nameEl = this.element.querySelector('.title');
+      nameEl.textContent = this.name;
+    },
+
+    /**
+     * Updates an icon on the page from a datastore record.
+     * Used for bookmarks and collections.
+     * @param {Object} record The datastore record.
+     */
+    updateFromDatastore: function(record) {
+      var iconChanged = record.icon !== this.icon;
+      var nameChanged = record.name !== this.name;
+
+      var type = this.detail.type;
+      var lastIcon = this.icon;
+      record.type = type;
+      this.detail = record;
+      if (nameChanged) {
+        this.updateTitle();
+
+        // Bug 1007743 - Workaround for projected content nodes disappearing
+        document.body.clientTop;
+        this.element.style.display = 'none';
+        document.body.clientTop;
+        this.element.style.display = '';
+      }
+
+      if (iconChanged && record.icon) {
+        this.renderIcon();
+      } else if (!record.icon) {
+        this.detail.icon = lastIcon;
+      }
     }
   };
 
-  exports.GridItem = GridItem;
+  exports.GaiaGrid.GridItem = GridItem;
 
 }(window));

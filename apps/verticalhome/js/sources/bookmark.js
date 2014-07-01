@@ -1,6 +1,7 @@
 'use strict';
-/* global Bookmark */
+/* global GaiaGrid */
 /* global BookmarksDatabase */
+/* global appManager */
 
 (function(exports) {
 
@@ -32,7 +33,7 @@
 
       for (var i in icons) {
         var icon = icons[i];
-        if (!(icon instanceof Bookmark)) {
+        if (!(icon instanceof GaiaGrid.Bookmark)) {
           continue;
         }
         allAppBookmarks[icon.detail.url] = icon;
@@ -48,7 +49,7 @@
       }
 
       for (i in allAppBookmarks) {
-        this.removeIconFromGrid(allAppBookmarks[i].detail);
+        this.removeIconFromGrid(allAppBookmarks[i].detail.url);
       }
 
       for (i = 0; i < toAdd.length; i++) {
@@ -67,7 +68,7 @@
       BookmarksDatabase.getAll().then(function(systemBookmarks) {
         // We are going to iterate over system bookmarks
         Object.keys(systemBookmarks).forEach(function(id) {
-          self.entries.push(new Bookmark(systemBookmarks[id]));
+          self.entries.push(new GaiaGrid.Bookmark(systemBookmarks[id]));
         });
 
         success(self.entries);
@@ -84,10 +85,17 @@
         case 'updated':
           this.addIconToGrid(e.target);
           app.itemStore.save(app.grid.getItems());
+          if (e.type === 'added') {
+            appManager.sendEventToCollectionApp('install',
+              { id: e.target.id });
+          }
           break;
         case 'removed':
           // The 'id' of a bookmark is really the url.
-          this.removeIconFromGrid(e.target.id);
+          var id = e.target.id;
+          this.removeIconFromGrid(id);
+          appManager.sendEventToCollectionApp('uninstall',
+            { id: id });
           break;
       }
     },
@@ -106,15 +114,15 @@
         return;
       }
 
-      var bookmark = new Bookmark(detail);
+      var bookmark = new GaiaGrid.Bookmark(detail);
       bookmark.setPosition(this.store.getNextPosition());
       this.entries.push(bookmark);
 
       // Manually inject this book mark into the app item list for now.
       // Remove and re-append a divider if the last item is a divider
-      var lastDivider = app.grid.getLastIfDivider();
-      app.grid.addIcon(bookmark.identifier, bookmark);
-      app.grid.addItem(lastDivider);
+      var lastDivider = app.grid.removeUntilDivider();
+      app.grid.add(bookmark);
+      app.grid.add(lastDivider);
 
       app.grid.render();
     },
@@ -125,15 +133,9 @@
     removeIconFromGrid: function(url) {
       var icons = app.grid.getIcons();
       var appObject = icons[url];
-      app.grid.removeIconByIdentifier(url);
 
-      var items = app.grid.getItems();
-      var itemIndex = items.indexOf(appObject);
-      app.grid.removeItemByIndex(itemIndex);
-      app.grid.render();
-
-      if (appObject.element) {
-        appObject.element.parentNode.removeChild(appObject.element);
+      if (appObject) {
+        appObject.removeFromGrid();
       }
     }
 

@@ -601,26 +601,19 @@ var KeyboardManager = {
   switchToNext: function km_switchToNext() {
     clearTimeout(this.switchChangeTimeout);
 
+    var self = this;
     var showed = this.showingLayout;
 
     this.switchChangeTimeout = setTimeout(function keyboardSwitchLayout() {
-      if (!this.keyboardLayouts[showed.type]) {
+      if (!self.keyboardLayouts[showed.type]) {
         showed.type = 'text';
       }
-      var length = this.keyboardLayouts[showed.type].length;
+      var length = self.keyboardLayouts[showed.type].length;
       var index = (showed.index + 1) % length;
-      this.keyboardLayouts[showed.type].activeLayout = index;
-
-      var nextLayout = this.keyboardLayouts[showed.type][index];
-      // Only resetShowingKeyboard() if the running layout is not the same app
-      // to prevent flash of black when switching.
-      if (showed.frame.dataset.frameManifestURL !==
-          nextLayout.manifestURL) {
-        this.resetShowingKeyboard();
-      }
-
-      this.setKeyboardToShow(showed.type, index);
-    }.bind(this), SWITCH_CHANGE_DELAY);
+      self.keyboardLayouts[showed.type].activeLayout = index;
+      self.resetShowingKeyboard();
+      self.setKeyboardToShow(showed.type, index);
+    }, SWITCH_CHANGE_DELAY);
   },
 
   // Show the input method menu
@@ -636,9 +629,9 @@ var KeyboardManager = {
     this.switchChangeTimeout = setTimeout(function keyboardLayoutList() {
       var items = [];
       self.keyboardLayouts[showed.type].forEach(function(layout, index) {
-        var label = layout.appName + ' ' + layout.name;
         var item = {
-          label: label,
+          layoutName: layout.name,
+          appName: layout.appName,
           value: index,
           selected: (index === activeLayout)
         };

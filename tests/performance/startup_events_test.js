@@ -12,6 +12,7 @@ var whitelistedApps = [
   'communications/contacts',
   'camera',
   'clock',
+  'email',
   'fm',
   'gallery',
   'settings',
@@ -21,7 +22,9 @@ var whitelistedApps = [
 
 var whitelistedUnifiedApps = [
   'camera',
+  'clock',
   'communications/dialer',
+  'email',
   'fm',
   'gallery',
   'settings'

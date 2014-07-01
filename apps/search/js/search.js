@@ -1,10 +1,12 @@
 (function() {
 
   'use strict';
+  /* global asyncStorage */
+  /* global Contextmenu */
   /* global Search */
   /* global SearchDedupe */
-  /* global UrlHelper */
   /* global SettingsListener */
+  /* global UrlHelper */
 
   // timeout before notifying providers
   var SEARCH_DELAY = 600;
@@ -21,12 +23,20 @@
      *
      * 'everything.me' is a special case which uses the e.me UI instead.
      */
-    urlTemplate: 'everything.me',
+    urlTemplate: 'https://www.google.com/search?q={searchTerms}',
 
     searchResults: document.getElementById('search-results'),
     newTabPage: document.getElementById('newtab-page'),
 
     suggestionsEnabled: false,
+
+    /**
+     * Used to display a notice on how to configure the search provider
+     * on first use
+     */
+    suggestionNotice: document.getElementById('suggestions-notice-wrapper'),
+    toShowNotice: true,
+    NOTICE_KEY: 'notice-shown',
 
     init: function() {
 
@@ -77,6 +87,15 @@
         this.suggestionsEnabled = enabled;
       }.bind(this));
 
+      this.initNotice();
+
+      // Fire off a dummy geolocation request so the prompt can be responded
+      // to before the user starts typing
+      if ('geolocation' in navigator) {
+        navigator.geolocation.getCurrentPosition(function(){});
+      }
+
+      this.contextmenu = new Contextmenu();
     },
 
     /**
@@ -116,19 +135,82 @@
       var input = msg.data.input;
       var providers = this.providers;
 
+      this.maybeShowNotice(input);
       this.clear();
 
-      this.changeTimeout = setTimeout(function doSearch() {
+      var collectionCount = 0;
+      var numProviders = Object.keys(this.providers).length;
+
+      /**
+       * Handles the display for the offline message. Displays the offline
+       * message once we process results for all providers, and if there are no
+       * results. Also called when the device comes online to hide the message.
+       */
+      function maybeShowOffline() {
+        if (navigator.isOnline) {
+          return;
+        }
+
+        var offlineMessage = document.getElementById('offline-message');
+        offlineMessage.textContent = '';
+
+        collectionCount++;
+        if (collectionCount >= numProviders) {
+          offlineMessage.textContent = navigator.mozL10n.get(
+            'offline-webresults', {
+            searchQuery: input
+          });
+        }
+      }
+
+      this.changeTimeout = setTimeout(() => {
         this.dedupe.reset();
 
-        for (var i in providers) {
-          var provider = providers[i];
+        Object.keys(providers).forEach((providerKey) => {
+          var provider = providers[providerKey];
+
           // If suggestions are disabled, only use local providers
           if (this.suggestionsEnabled || !provider.remote) {
-            provider.search(input, this.collect.bind(this, provider));
+            provider.search(input).then((results) => {
+              if (!results.length) {
+                maybeShowOffline();
+              }
+
+              this.collect(provider, results);
+            }, () => {
+              maybeShowOffline();
+            });
           }
-        }
-      }.bind(this), SEARCH_DELAY);
+        });
+      }, SEARCH_DELAY);
+    },
+
+    /**
+     * Show a notice to the user informaing them of how to configure
+     * search providers, should only be shown once.
+     */
+    initNotice: function() {
+
+      var confirm = document.getElementById('suggestions-notice-confirm');
+
+      confirm.addEventListener('click', this.discardNotice.bind(this));
+
+      asyncStorage.getItem(this.NOTICE_KEY, function(value) {
+        this.toShowNotice = !value;
+      }.bind(this));
+    },
+
+    discardNotice: function() {
+      this.suggestionNotice.hidden = true;
+      this.toShowNotice = false;
+      asyncStorage.setItem(this.NOTICE_KEY, true);
+      this._port.postMessage({'action': 'focus'});
+    },
+
+    maybeShowNotice: function(msg) {
+      if (msg.length > 2 && this.toShowNotice) {
+        this.suggestionNotice.hidden = false;
+      }
     },
 
     /**
@@ -160,6 +242,11 @@
      * Called when the user submits the search form
      */
     submit: function(msg) {
+
+      if (!this.suggestionNotice.hidden) {
+        this.discardNotice();
+      }
+
       var input = msg.data.input;
 
       // Not a valid URL, could be a search term
@@ -169,7 +256,8 @@
           this.expandSearch(input);
         // Other search providers show results in the browser
         } else {
-          var url = this.urlTemplate.replace('{searchTerms}', input);
+          var url = this.urlTemplate.replace('{searchTerms}',
+                                             encodeURIComponent(input));
           this.navigate(url);
         }
         return;
@@ -193,6 +281,9 @@
       for (var i in this.providers) {
         this.providers[i].clear();
       }
+
+      var offlineMessage = document.getElementById('offline-message');
+      offlineMessage.textContent = '';
     },
 
     showBlank: function() {

@@ -177,17 +177,14 @@
           immediateTranstion = true;
         }
 
-        if (immediateTranstion) {
-          openAnimation = closeAnimation = 'immediate';
-        } else if (switching) {
-          // XXX: We should just the ordering by StackManager
-          var nextAppIsNew = appNext.createdTime > appCurrent.createdTime;
-          openAnimation = nextAppIsNew ? 'invoked' : 'in-from-left';
-          closeAnimation = nextAppIsNew ? 'invoking' : 'out-to-right';
+        appNext.open(immediateTranstion ? 'immediate' :
+                      ((switching === true) ? 'invoked' : openAnimation));
+        if (appCurrent) {
+          appCurrent.close(immediateTranstion ? 'immediate' :
+            ((switching === true) ? 'invoking' : closeAnimation));
+        } else {
+          this.debug('No current running app!');
         }
-
-        appNext.open(openAnimation);
-        appCurrent && appCurrent.close(closeAnimation);
       }.bind(this));
     },
 
@@ -212,7 +209,7 @@
       }
       window.addEventListener('cardviewbeforeshow', this);
       window.addEventListener('launchapp', this);
-      window.addEventListener('launchactivity', this);
+      document.body.addEventListener('launchactivity', this, true);
       window.addEventListener('home', this);
       window.addEventListener('appcreated', this);
       window.addEventListener('appterminated', this);
@@ -245,19 +242,10 @@
       // XXX: PermissionDialog is shared so we need AppWindowManager
       // to focus the active app after it's closed.
       window.addEventListener('permissiondialoghide', this);
+      window.addEventListener('appopening', this);
+      window.addEventListener('localized', this);
 
       this._settingsObserveHandler = {
-        // update app name when language setting changes
-        'language.current': {
-          defaultValue: null,
-          callback: function(value) {
-            if (!value) {
-              return;
-            }
-            this.broadcastMessage('localized');
-          }.bind(this)
-        },
-
         // continuous transition controlling
         'continuous-transition.enabled': {
           defaultValue: null,
@@ -321,6 +309,8 @@
       window.removeEventListener('orientationchange', this);
       window.removeEventListener('sheetstransitionstart', this);
       window.removeEventListener('permissiondialoghide', this);
+      window.removeEventListener('appopening', this);
+      window.removeEventListener('localized', this);
 
       for (var name in this._settingsObserveHandler) {
         SettingsListener.unobserve(
@@ -391,6 +381,7 @@
           }
           break;
 
+        case 'appopening':
         case 'appopened':
         case 'homescreenopened':
           // Someone else may open the app,
@@ -542,6 +533,10 @@
           if (document.mozFullScreen) {
             document.mozCancelFullScreen();
           }
+          break;
+
+        case 'localized':
+          this.broadcastMessage('localized');
           break;
       }
     },

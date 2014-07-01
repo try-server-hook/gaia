@@ -1,9 +1,8 @@
 'use strict';
-/* global Divider */
 /* global GridDragDrop */
+/* global GaiaGrid */
 /* global GridLayout */
 /* global GridZoom */
-/* global Placeholder */
 
 (function(exports) {
 
@@ -68,13 +67,60 @@
     /**
      * Adds an item into the items array.
      * If the item is an icon, add it to icons.
+     * @param {Object} item The grid object, should inherit from GridItem.
+     * @param {Object} insertTo The position to insert the item into our list.
      */
-    add: function(item) {
-      this.items.push(item);
+    add: function(item, insertTo) {
+      if (!item) {
+        return;
+      }
 
       if (item.identifier) {
+        // If we already have an item with this identifier, exit.
+        // This avoids a potential race condition where we might have duplicate
+        // items with the same identifiers in the grid. This should not happen.
+        if (this.icons[item.identifier]) {
+          console.log('Error, duplicate identifier: ',
+            item.identifier, new Error().stack);
+          return;
+        }
+
         this.icons[item.identifier] = item;
       }
+
+      // If isnsertTo it is a number, splice.
+      if (!isNaN(parseFloat(insertTo)) && isFinite(insertTo)) {
+        this.items.splice(insertTo, 0, item);
+      } else {
+        this.items.push(item);
+      }
+    },
+
+    /**
+     * Finds nearest item by and returns an index.
+     * @param {Number} x relative to the screen
+     * @param {Number} y relative to the screen
+     */
+    getNearestItemIndex: function(x, y) {
+      var leastDistance;
+      var foundIndex;
+      for (var i = 0, iLen = this.items.length; i < iLen; i++) {
+        var item = this.items[i];
+
+        // Do not consider dividers for dragdrop.
+        if (!item.isDraggable()) {
+          continue;
+        }
+
+        var distance = Math.sqrt(
+          (x - item.x) * (x - item.x) +
+          (y - item.y) * (y - item.y));
+        if (!leastDistance || distance < leastDistance) {
+          leastDistance = distance;
+          foundIndex = i;
+        }
+      }
+      return foundIndex;
     },
 
     start: function() {
@@ -99,6 +145,7 @@
      * Launches an app.
      */
     clickIcon: function(e) {
+      e.preventDefault();
       var container = e.target;
       var action = 'launch';
 
@@ -109,14 +156,19 @@
 
       var identifier = container.dataset.identifier;
       var icon = this.icons[identifier];
+      var inEditMode = this.dragdrop && this.dragdrop.inEditMode;
 
       if (!icon) {
+        if (e.target.classList.contains('placeholder') && inEditMode) {
+          // Exit from edit mode when user clicks an empty space
+          window.dispatchEvent(new CustomEvent('hashchange'));
+        }
         return;
       }
 
       // We do not allow users to launch icons in edit mode
-      if (action === 'launch' && this.dragdrop && this.dragdrop.inEditMode) {
-        if (icon.detail.type !== 'bookmark') {
+      if (action === 'launch' && inEditMode) {
+        if (icon.detail.type !== 'bookmark' || !icon.isEditable()) {
           return;
         }
         // Editing a bookmark in edit mode
@@ -131,7 +183,9 @@
         // will not work because activities do not fire it.
         var returnTimeout = 500;
         setTimeout(function stateReturn() {
-          icon.element.classList.remove('launching');
+          if (icon.element) {
+            icon.element.classList.remove('launching');
+          }
         }, returnTimeout);
       }
 
@@ -146,7 +200,7 @@
       var toRemove = [];
 
       this.items.forEach(function(item, idx) {
-        if (item instanceof Divider) {
+        if (item instanceof GaiaGrid.Divider) {
           if (appCount === 0) {
             toRemove.push(idx);
           }
@@ -168,8 +222,17 @@
         return;
       }
       var lastItem = this.items[this.items.length - 1];
-      if (!(lastItem instanceof Divider)) {
-        this.items.push(new Divider());
+      if (!(lastItem instanceof GaiaGrid.Divider)) {
+        this.items.push(new GaiaGrid.Divider());
+      }
+
+      // In dragdrop also append a row of placeholders.
+      // These placeholders are used for drop detection as we ignore dividers
+      // and will create a new group when an icon is dropped on them.
+      if (this.dragdrop && this.dragdrop.inEditMode) {
+        var coords = [0, lastItem.y + 2];
+        this.createPlaceholders(coords, this.items.length, this.layout.cols,
+          true);
       }
     },
 
@@ -180,12 +243,12 @@
       var toSplice = [];
       var previousItem;
       this.items.forEach(function(item, idx) {
-        if (item instanceof Placeholder) {
+        if (item instanceof GaiaGrid.Placeholder) {
 
           // If the previous item is a divider, and we are in edit mode
           // we do not remove the placeholder. This is so the section will
           // remain even if the user drags the icon around. Bug 1014982
-          if (previousItem && previousItem instanceof Divider &&
+          if (previousItem && previousItem instanceof GaiaGrid.Divider &&
               this.dragdrop && this.dragdrop.inDragAction) {
             return;
           }
@@ -202,20 +265,40 @@
     },
 
     /**
+     * Clears the grid view of all items.
+     */
+    clear: function() {
+      for (var i = 0, iLen = this.items.length; i < iLen; i++) {
+        var item = this.items[i];
+        if (item.element) {
+          this.element.removeChild(item.element);
+
+          // We must de-reference element explicitly so we can re-use item
+          // objects the next time we call render.
+          item.element = null;
+        }
+      }
+      this.items = [];
+      this.icons = {};
+    },
+
+    /**
      * Creates placeholders and injects them into the grid.
      * @param {Array} coordinates [x,y] coordinates on the grid of the first
      * item in grid units.
      * @param {Integer} idx The position of the first placeholder.
      * @param {Integer} idx The number of placeholders to create.
+     * @param {Boolean} createsGroup Creates a group on drop during edit mode.
      */
-    createPlaceholders: function(coordinates, idx, count) {
+    createPlaceholders: function(coordinates, idx, count, createsGroup) {
       for (var i = 0; i < count; i++) {
         var itemCoords = [
           coordinates[0] + i,
           coordinates[1]
         ];
 
-        var item = new Placeholder();
+        var item = new GaiaGrid.Placeholder();
+        item.createsGroupOnDrop = createsGroup;
         this.items.splice(idx + i, 0, item);
         item.render(itemCoords, idx + i);
       }

@@ -6,19 +6,29 @@
   function ContextMenuHandler() {
     this.container = document.getElementById('icons').parentNode;
     this.container.addEventListener('contextmenu', this);
+    this.container.addEventListener('touchstart', this);
     window.addEventListener('hashchange', this);
   }
 
   ContextMenuHandler.prototype = {
     handleEvent: function(e) {
       switch(e.type) {
+        case 'touchstart':
+          this.canceled = e.touches.length > 1;
+          break;
+
         case 'contextmenu':
+          if (this.canceled || app.grid._grid.dragdrop.inEditMode) {
+            return;
+          }
+
           // Prevent the click when the finger is released
           e.preventDefault();
 
           var resources = ['js/contextmenu_ui.js'];
           LazyLoader.load(resources, function loaded() {
-            contextMenuUI.show();
+            // pass the event through for processing
+            contextMenuUI.show(e);
           });
 
           break;

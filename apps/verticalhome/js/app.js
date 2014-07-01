@@ -19,6 +19,9 @@
     var editModeDone = document.getElementById('exit-edit-mode');
     editModeDone.addEventListener('click', this.exitEditMode);
 
+    window.addEventListener('gaiagrid-dragdrop-begin', this);
+    window.addEventListener('gaiagrid-dragdrop-finish', this);
+
     // some terrible glue to keep track of which icons failed to download
     // and should be retried when/if we come online again.
     this._iconsToRetry = [];
@@ -69,6 +72,8 @@
 
         window.addEventListener('localized', this.onLocalized.bind(this));
       }.bind(this));
+
+      this.grid.setEditHeaderElement(document.getElementById('edit-header'));
     },
 
     start: function() {
@@ -146,6 +151,15 @@
 
         case 'gaiagrid-saveitems':
           this.itemStore.save(this.grid.getItems());
+          break;
+
+        case 'gaiagrid-dragdrop-begin':
+          // Home button disabled while dragging
+          window.removeEventListener('hashchange', this);
+          break;
+
+        case 'gaiagrid-dragdrop-finish':
+          window.addEventListener('hashchange', this);
           break;
 
         case 'hashchange':

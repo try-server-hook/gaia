@@ -3,8 +3,8 @@
 /* global Contextmenu */
 /* global ViewApps */
 /* global ViewBgImage */
+/* global ViewEditMode */
 /* global Promise */
-/* global eme */
 
 (function(exports) {
 
@@ -14,41 +14,46 @@
     name: document.getElementById('name')
   };
 
+  function updateTitle(element, collection) {
+    element.textContent = collection.localizedName;
+  }
+
   function HandleView(activity) {
-    var collection = BaseCollection.create(activity.source.data);
+    loading();
 
-    loading(false);
+    var data = activity.source.data;
 
-    var categoryId = collection.categoryId;
-    var query = collection.query;
-    eme.log('view collection', categoryId ? ('categoryId: ' + categoryId)
-                                          : ('query: ' + query));
+    // create collection object
+    var collection = BaseCollection.create(data);
 
+    // XXX: in 2.1 we can use a better approach of just setting the l10n id
+    //      see Bug 992473
+    var l10nUpdateHander = updateTitle.bind(this, elements.name, collection);
+    navigator.mozL10n.ready(l10nUpdateHander);
+    window.addEventListener('localized', l10nUpdateHander);
+
+    // set wallpaper behind header
+    getWallpaperImage().then(function(src) {
+      elements.header.style.backgroundImage = 'url(' + src + ')';
+    });
+
+    // close button listener
     elements.close.addEventListener('click', function close() {
       activity.postResult('close');
     });
+
+    loading(false);
 
     /* jshint -W031 */
     new Contextmenu(collection);
     new ViewApps(collection);
     new ViewBgImage(collection);
+    new ViewEditMode(collection);
   }
 
   navigator.mozSetMessageHandler('activity', function onActivity(activity) {
     if (activity.source.name === 'view-collection') {
-      // set collection name to header
-      elements.name.textContent = activity.source.data.name;
-
-      // set wallpaper behind header
-      getWallpaperImage().then(function(src) {
-        elements.header.style.backgroundImage = 'url(' + src + ')';
-      });
-
-      loading();
-
-      eme.init().then(function ready() {
-        HandleView(activity);
-      });
+      HandleView(activity);
     }
   });
 

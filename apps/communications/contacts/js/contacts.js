@@ -287,7 +287,7 @@ var Contacts = (function() {
 
   var contactListClickHandler = function originalHandler(id) {
     initDetails(function onDetailsReady() {
-      contactsList.getContactById(id, function findCb(contact, fbContact) {
+      contacts.List.getContactById(id, function findCb(contact, fbContact) {
 
         // Enable NFC listening is available
         if ('mozNfc' in navigator) {
@@ -616,6 +616,12 @@ var Contacts = (function() {
 
   var setCurrent = function c_setCurrent(contact) {
     currentContact = contact;
+    if ('mozNfc' in navigator && contacts.NFC) {
+      contacts.NFC.startListening(contact);
+    }
+    if (contacts.Details) {
+      contacts.Details.setContact(contact);
+    }
   };
 
   var showOverlay = function c_showOverlay(message, progressClass, textId) {

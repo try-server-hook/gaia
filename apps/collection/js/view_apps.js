@@ -1,5 +1,8 @@
 'use strict';
+/* global CollectionIcon */
 /* global eme */
+/* global NativeInfo */
+
 
 (function(exports) {
 
@@ -11,26 +14,54 @@
       offlineMessage: document.getElementById('offline-message')
     };
 
-    var options = collection.categoryId ? {categoryId: collection.categoryId}
-                                        : {query: collection.query};
-
-
-    // render pinned apps first
-    collection.render(grid);
-
-    if (navigator.onLine) {
-      makeRequest();
+    var options = {
+      limit: 24
+    };
+    if (collection.categoryId) {
+      options.categoryId = collection.categoryId;
     } else {
-      onOffline();
+      options.query = collection.query;
     }
 
-    addListeners();
+    loading();
+
+    // XXX: Override the grid render method default options
+    var defaultGridRender = grid._grid.render;
+    grid._grid.render = function(options) {
+      options = options || {};
+      options.skipDivider = true;
+      defaultGridRender.call(grid._grid, options);
+    };
+
+    // Start by showing pinned apps
+    // Update Collection from db
+    // Render grid for the first time
+    // Go get web results
+    NativeInfo.setup()
+    .then(() => collection.refresh())
+    .then(() => collection.render(grid))
+    .then(() => {
+      loading(false);
+      queueRequest();
+    });
+
+    CollectionIcon.init(grid.maxIconSize);
+
+    function queueRequest() {
+      if (navigator.onLine) {
+        makeRequest();
+      } else {
+        onOffline();
+      }
+
+      addListeners();
+    }
 
     function onOffline() {
       loading(false);
 
       var msg = navigator.mozL10n.get('offline-webresults', {
-        collectionName: collection.name
+        collectionName: collection.localizedName
       });
       elements.offlineMessage.innerHTML = msg;
       elements.offline.classList.add('show');
@@ -39,28 +70,15 @@
     function makeRequest() {
       loading();
 
-      eme.api.Apps.search(options)
-        .then(function success(searchResponse) {
-          var results = [];
+      eme.init()
+      .then(() => eme.api.Apps.search(options))
+      .then(function success(response) {
+        onResponse();
 
-          searchResponse.response.apps.forEach(function each(webapp) {
-            results.push({
-              id: webapp.id, // e.me app id (int)
-              name: webapp.name,
-              url: webapp.appUrl,
-              icon: webapp.icon,
-              clipIcon: true
-            });
-          });
+        collection.addWebResults(response.response.apps);
+        collection.renderWebResults(grid);
 
-          onResponse();
-
-          // XXX force layout or else grid isn't displayed
-          grid.clientLeft;
-          collection.webResults = results;
-          collection.render(grid);
-
-        }, onResponse);
+      }, onOffline);
     }
 
     function loading(should) {

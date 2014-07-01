@@ -47,9 +47,9 @@ else {
     }
 
     handleShare(event.data, function(command, details) {
-      if (command === 'save') {
-        event.source.postMessage(details, event.origin);
-      }
+      event.source.postMessage(
+        {command: command, details: details}, event.origin
+      );
       window.close();
     });
   });
@@ -199,8 +199,8 @@ function handleShare(data, callback) {
       // Disable the button so the user can't click it twice.
       save.disabled = true;
 
-      // For a large blob this can take a while, so display a message.
-      document.getElementById('title').textContent = _('saving-ringtone');
+      // For a large blob this can take a while, so display a spinner.
+      document.getElementById('saving-overlay').hidden = false;
 
       // Add to the custom ringtones DB and then set it in the settings.
       var info = {name: songtitle, subtitle: subtitle, blob: data.blob};

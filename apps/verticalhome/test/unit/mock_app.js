@@ -14,12 +14,35 @@ MockApp.prototype = {
   mGetInitialized: function () {
     return MockApp.initialized;
   },
+  itemStore: {
+    save: function() {}
+  },
   grid: {
-    addIcon: function(identifier, obj) {
-      MockApp.mIcons[identifier] = obj;
-      MockApp.mItems.push(obj);
+    add: function(detail) {
+      if (detail) {
+        MockApp.mItems.push(detail);
+      }
     },
-    render: function() {}
+    removeUntilDivider: function() {},
+    removeIconByIdentifier: function(identifier) {
+      delete MockApp.mIcons[identifier];
+    },
+    removeItemByIndex: function(idx) {
+      MockApp.mItems.splice(idx, 1);
+    },
+    getIcons: function() {
+      return MockApp.mIcons;
+    },
+    getItems: function() {
+      return MockApp.mItems;
+    },
+    render: function() {},
+
+    _grid: {
+      dragdrop: {
+        inEditMode: false
+      }
+    }
   }
 };
 

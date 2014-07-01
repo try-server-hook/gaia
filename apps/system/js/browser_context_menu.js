@@ -91,9 +91,15 @@
     var hasSystemTargets = detail.systemTargets &&
       detail.systemTargets.length > 0;
 
-    // systemTargets are currently disabled for non browsing contexts
-    // https://bugzilla.mozilla.org/show_bug.cgi?id=1010160
-    if (!(hasContextMenu || (hasSystemTargets && this.app.isBrowser()))) {
+    // Nothing to show
+    if (!hasSystemTargets && !hasContextMenu) {
+      return;
+    }
+
+    // context menus in certified apps that only have system targets are
+    // currently disabled. https://bugzilla.mozilla.org/show_bug.cgi?id=1010160
+    // is tracking reenabling
+    if (!hasContextMenu && hasSystemTargets && this.app.isCertified()) {
       return;
     }
 
@@ -117,6 +123,7 @@
     this.elements.list.innerHTML = '';
     items.forEach(function traveseItems(item) {
       var action = document.createElement('button');
+      action.dataset.id = item.id;
       action.dataset.value = item.value;
       action.textContent = item.label;
 
@@ -167,9 +174,14 @@
   };
 
   BrowserContextMenu.prototype.hide = function(evt) {
+    if (!this.element) {
+      return;
+    }
+
     if (evt) {
       evt.preventDefault();
     }
+
     this.element.blur();
     this.element.classList.remove('visible');
     if (this.app) {
@@ -217,12 +229,16 @@
   };
 
   BrowserContextMenu.prototype.generateSystemMenuItem = function(item) {
-    switch (item.nodeName) {
+
+    var nodeName = item.nodeName;
+    var uri = item.data.uri;
+
+    switch (nodeName) {
       case 'A':
         return [{
           id: 'open-in-new-tab',
           label: _('open-in-new-tab'),
-          callback: this.openUrl.bind(this, item.data.uri)
+          callback: this.openUrl.bind(this, uri)
         }, {
         // TODO: requires the text description from the link
         // https://bugzilla.mozilla.org/show_bug.cgi?id=1009351
@@ -233,8 +249,30 @@
         // }, {
           id: 'share-link',
           label: _('share-link'),
-          callback: this.shareUrl.bind(this, item.data.uri)
+          callback: this.shareUrl.bind(this, uri)
         }];
+
+      case 'IMG':
+      case 'VIDEO':
+      case 'AUDIO':
+        var typeMap = {
+          'IMG': 'image',
+          'VIDEO': 'video',
+          'AUDIO': 'audio'
+        };
+        var type = typeMap[nodeName];
+        if (nodeName === 'VIDEO' && !item.data.hasVideo) {
+          type = 'audio';
+        }
+
+        return [
+          {
+            id: 'save-' + type,
+            label: _('save-' + type),
+            callback: this.app.browser.element.download.bind(this, uri)
+          }
+        ];
+
       default:
         return [];
     }

@@ -97,6 +97,13 @@ suite('Build GAIA from differece app list', function() {
       assert.ok(fs.existsSync(initPath),
         'init.json should exist');
 
+      // Homescreen1 should have a role of system
+      var hsHomZip = new AdmZip(path.join(process.cwd(), 'profile',
+        'webapps', 'homescreen.gaiamobile.org', 'application.zip'));
+      var hsHomManifest =
+        JSON.parse(hsHomZip.readAsText(hsHomZip.getEntry('manifest.webapp')));
+      assert.equal(hsHomManifest.role, 'system')
+
       done();
     });
   });
@@ -569,13 +576,13 @@ suite('Build Integration tests', function() {
       var installedExtsPath = path.join('profile-debug',
         'installed-extensions.json');
       var expectedSettings = {
-        'homescreen.manifestURL': 'http://verticalhome.gaiamobile.org:8080/manifest.webapp',
-        'rocketbar.searchAppURL': 'http://search.gaiamobile.org:8080/index.html'
+        'homescreen.manifestURL': 'app://verticalhome.gaiamobile.org/manifest.webapp',
+        'rocketbar.searchAppURL': 'app://search.gaiamobile.org/index.html'
       };
       var expectedUserPrefs = {
-        'browser.manifestURL': 'http://system.gaiamobile.org:8080/manifest.webapp',
-        'browser.homescreenURL': 'http://system.gaiamobile.org:8080',
-        'browser.startup.homepage': 'http://system.gaiamobile.org:8080',
+        'browser.manifestURL': 'app://system.gaiamobile.org/manifest.webapp',
+        'browser.homescreenURL': 'app://system.gaiamobile.org/index.html',
+        'browser.startup.homepage': 'app://system.gaiamobile.org/index.html',
         'startup.homepage_welcome_url': '',
         'browser.shell.checkDefaultBrowser': false,
         'devtools.toolbox.host': 'side',

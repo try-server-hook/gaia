@@ -6,7 +6,8 @@
          ActivityPicker, ThreadListUI, OptionMenu, Threads, Contacts,
          Attachment, WaitingScreen, MozActivity, LinkActionHandler,
          ActivityHandler, TimeHeaders, ContactRenderer, Draft, Drafts,
-         Thread, MultiSimActionButton, LazyLoader, Navigation, Promise */
+         Thread, MultiSimActionButton, LazyLoader, Navigation, Promise,
+         Dialog, SharedComponents */
 /*exported ThreadUI */
 
 (function(global) {
@@ -146,26 +147,6 @@ var ThreadUI = global.ThreadUI = {
 
     this.toField.addEventListener(
       'focus', this.toFieldInput.bind(this), true
-    );
-
-    // Handlers for send button and avoiding to hide keyboard instead
-    this.sendButton.addEventListener(
-      'mousedown', function mouseDown(event) {
-        event.preventDefault();
-        event.target.classList.add('active');
-      }
-    );
-
-    this.sendButton.addEventListener(
-      'mouseup', function mouseUp(event) {
-        event.target.classList.remove('active');
-      }
-    );
-
-    this.sendButton.addEventListener(
-      'mouseout', function mouseOut(event) {
-        event.target.classList.remove('active');
-      }
     );
 
     this.sendButton.addEventListener(
@@ -311,10 +292,16 @@ var ThreadUI = global.ThreadUI = {
     // save a message draft if necessary
     if (document.hidden) {
       // Auto-save draft if the user has entered anything
-      // in the composer.
-      if ((Navigation.isCurrentPanel('composer') ||
-           Navigation.isCurrentPanel('thread')) &&
-          (!Compose.isEmpty() || ThreadUI.recipients.length)) {
+      // in the composer or into To field (for composer panel only).
+      var isAutoSaveRequired = false;
+
+      if (Navigation.isCurrentPanel('composer')) {
+        isAutoSaveRequired = !Compose.isEmpty() || !!ThreadUI.recipients.length;
+      } else if (Navigation.isCurrentPanel('thread')) {
+        isAutoSaveRequired = !Compose.isEmpty();
+      }
+
+      if (isAutoSaveRequired) {
         ThreadUI.saveDraft({preserve: true, autoSave: true});
         Drafts.store();
       }
@@ -632,11 +619,12 @@ var ThreadUI = global.ThreadUI = {
     if (Navigation.isCurrentPanel('thread-list')) {
       this.container.textContent = '';
       this.cleanFields(true);
-      this.recipients.length = 0;
       Threads.currentId = null;
     }
     if (!Navigation.isCurrentPanel('composer')) {
       this.threadMessages.classList.remove('new');
+
+      this.recipients.length = 0;
     }
 
     if (!Navigation.isCurrentPanel('thread')) {
@@ -1327,42 +1315,24 @@ var ThreadUI = global.ThreadUI = {
     return messageContainer;
   },
 
-  updateCarrier: function thui_updateCarrier(thread, contacts, details) {
+  updateCarrier: function thui_updateCarrier(thread, contacts) {
     var carrierTag = document.getElementById('contact-carrier');
     var threadMessages = this.threadMessages;
     var number = thread.participants[0];
-    var carrierDetails;
+    var phoneDetails;
 
     // The carrier banner is meaningless and confusing in
     // group message mode.
     if (thread.participants.length === 1 &&
         (contacts && contacts.length)) {
 
-      carrierDetails = Utils.getCarrierTag(
-        number, contacts[0].tel, details
-      );
+      phoneDetails = Utils.getPhoneDetails(number, contacts[0].tel);
 
-      if (carrierDetails) {
-        var phoneType = carrierTag.querySelector('.phone-type'),
-            phoneDetails = carrierTag.querySelector('.phone-details');
-
-        phoneType.dataset.l10nId = carrierDetails.type;
-        // We need this line for the unknown phone type case, so that we display
-        // phone type instead of empty string if we can't translate it.
-        phoneType.textContent = carrierDetails.type;
-        phoneDetails.textContent = carrierDetails.carrier ||
-          carrierDetails.number;
+      if (phoneDetails) {
+        carrierTag.innerHTML = SharedComponents.phoneDetails(phoneDetails);
 
         navigator.mozL10n.translate(carrierTag);
 
-        carrierTag.classList.toggle(
-          'has-phone-type',
-          !!carrierDetails.type
-        );
-        carrierTag.classList.toggle(
-          'has-phone-details',
-          carrierDetails.carrier || carrierDetails.number
-        );
         threadMessages.classList.add('has-carrier');
       } else {
         threadMessages.classList.remove('has-carrier');
@@ -1419,7 +1389,7 @@ var ThreadUI = global.ThreadUI = {
             n: others
         });
 
-        this.updateCarrier(thread, contacts, details);
+        this.updateCarrier(thread, contacts);
         resolve();
       }.bind(this));
     }.bind(this));
@@ -1889,8 +1859,7 @@ var ThreadUI = global.ThreadUI = {
   },
 
   delete: function thui_delete() {
-    var question = navigator.mozL10n.get('deleteMessages-confirmation');
-    if (window.confirm(question)) {
+    function performDeletion() {
       WaitingScreen.show();
       var delNumList = [];
       var inputs = ThreadUI.selectedInputs;
@@ -1908,6 +1877,31 @@ var ThreadUI = global.ThreadUI = {
         }
       );
     }
+
+    var dialog = new Dialog({
+      title: {
+        l10nId: 'messages'
+      },
+      body: {
+        l10nId: 'deleteMessages-confirmation'
+      },
+      options: {
+        cancel: {
+          text: {
+            l10nId: 'cancel'
+          }
+        },
+        confirm: {
+          text: {
+            l10nId: 'delete'
+          },
+          method: performDeletion,
+          className: 'danger'
+        }
+      }
+    });
+
+    dialog.show();
   },
 
   cancelEdit: function thlui_cancelEdit() {

@@ -9,10 +9,9 @@
   transform-origin: left top;
 }
 
+/* RTL fixes being tracked in bug 1008013 */
 *[dir=rtl] #rocketbar {
-  left: auto;
-  right: 0;
-  transform-origin: right top;
+  direction: ltr;
 }
 
 #rocketbar.expanded {
@@ -36,7 +35,7 @@ body:not(.rb-enabled) #rocketbar {
   background: rgba(51, 51, 51, 0.5);
   border-radius: 1.7rem;
   padding: 0 1rem;
-  margin: 0.3rem 0.6rem 0.6rem 0.6rem;
+  margin: 0.3rem 0.5rem 0.6rem 0.5rem;
   overflow: hidden;
   white-space: nowrap;
 }
@@ -56,7 +55,7 @@ body:not(.rb-enabled) #rocketbar {
   width: 100%;
   height: 3.4rem;
   color: #e7e7e7;
-  padding: 0 0 0 0.4rem;
+  padding: 0 0 0 0.5rem;
   text-overflow: ellipsis;
 }
 
@@ -97,8 +96,27 @@ body:not(.rb-enabled) #rocketbar {
   opacity: 0.4;
 }
 
-#rocketbar-input, #rocketbar-cancel {
+#rocketbar-input {
   flex: auto;
+}
+
+#rocketbar-cancel, #rocketbar-clear {
+  flex: none;
+}
+
+#rocketbar-clear {
+  display: none;
+}
+
+#rocketbar.hasText #rocketbar-clear {
+  display: block;
+}
+
+#rocketbar-clear {
+  border: none;
+  background: url(actionicon_textfield_clear.png) no-repeat center center;
+  background-size: 2.5rem 2.5rem;
+  width: 4.5rem;
 }
 
 #rocketbar-cancel {
@@ -228,7 +246,7 @@ body.homesearch-enabled #screen.on-homescreen.rocketbar-expanded #statusbar-back
 
 /* Size the rocketbar form to cover the homescreen one exactly */
 body.homesearch-enabled #screen.on-homescreen #rocketbar-form {
-  width: calc(100% - 1.2rem);
+  width: calc(100% - 1rem);
   box-sizing: border-box;
 }
 

@@ -300,7 +300,8 @@
 
     // If we are currently displaying the homescreen but we have apps in the
     // stack we will display the most recently used application.
-    if (this.currentPosition == -1 && stack.length) {
+    if ((this.currentPosition == -1 || StackManager.outOfStack()) &&
+        stack.length) {
       this.currentPosition = stack.length - 1;
     }
     this.currentDisplayed = this.currentPosition;
@@ -939,15 +940,15 @@
     var nextCard = this.nextCard || pseudoCard;
     var prevCardStyle = {
       pointerEvents: 'none',
-      MozTransition: currentCard.CARD_TRANSITION
+      MozTransition: currentCard.MOVE_TRANSITION
     };
     var nextCardStyle = {
       pointerEvents: 'none',
-      MozTransition: currentCard.CARD_TRANSITION
+      MozTransition: currentCard.MOVE_TRANSITION
     };
     var currentCardStyle = {
       pointerEvents: 'auto',
-      MozTransition: currentCard.CARD_TRANSITION
+      MozTransition: currentCard.MOVE_TRANSITION
     };
 
     if (this.deltaX < 0) {

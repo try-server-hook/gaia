@@ -6,18 +6,25 @@ requireApp('search/test/unit/mock_search.js');
 requireApp('search/js/providers/provider.js');
 requireApp('search/js/providers/grid_provider.js');
 
+// Required files for the grid and a mozapp result
+require('/shared/js/l10n.js');
+require('/shared/elements/gaia_grid/js/grid_icon_renderer.js');
+require('/shared/elements/gaia_grid/js/grid_layout.js');
+require('/shared/elements/gaia_grid/js/grid_view.js');
+require('/shared/elements/gaia_grid/script.js');
+require('/shared/elements/gaia_grid/js/items/grid_item.js');
+require('/shared/elements/gaia_grid/js/items/mozapp.js');
+
 suite('search/providers/local_apps', function() {
 
   var realMozApps;
 
   suiteSetup(function() {
-    window.Icon = function() {};
     realMozApps = navigator.mozApps;
     navigator.mozApps = MockNavigatormozApps;
   });
 
   suiteTeardown(function() {
-    delete window.Icon;
     navigator.mozApps = realMozApps;
   });
 
@@ -57,7 +64,7 @@ suite('search/providers/local_apps', function() {
         }
       };
 
-      subject.search('moz', function(results) {
+      subject.search('moz').then(results => {
         assert.equal(results.length, 1);
         done();
       });
