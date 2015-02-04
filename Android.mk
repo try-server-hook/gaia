@@ -31,7 +31,10 @@ endif
 # GAIA_DEVICE_TYPE:
 # phone - default
 # tablet
-# tv
+# tv 
+# auto 
+# watch 
+# cloud_Firefox
 ifneq (,$(GAIA_DEVICE_TYPE))
 GAIA_MAKE_FLAGS += GAIA_DEVICE_TYPE=$(GAIA_DEVICE_TYPE)
 endif
