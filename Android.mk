@@ -30,7 +30,9 @@ endif
 # Gaia currently supports different builds by giving a specific device type.
 # GAIA_DEVICE_TYPE:
 # phone - default
-# tablet
+# tablet 
+# watch 
+# cloud_Firefox
 # tv
 ifneq (,$(GAIA_DEVICE_TYPE))
 GAIA_MAKE_FLAGS += GAIA_DEVICE_TYPE=$(GAIA_DEVICE_TYPE)
